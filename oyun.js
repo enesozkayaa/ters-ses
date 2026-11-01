@@ -143,10 +143,31 @@ const Ev = (() => {
     for (let k = 0; k < n && ev.oyuncular[ebe].koptu; k++) ebe = (ebe + 1) % n;
     Object.assign(ev, {
       ebe, unlu: yeniUnlu(), degisti: false, ebeKayit: null, taklitler: {}, tahminler: {}, atlandi: '',
-      asama: 'ebe', bitis: Date.now() + EBE_SURESI * 1000,
+      asama: 'ebe', bitis: Date.now() + EBE_SURESI * 1000, ebeDenemesi: 1, uyari: '',
     });
     ev.oyuncular.forEach(o => (o.turPuani = 0));
-    zamanla(EBE_SURESI * 1000 + 1500, () => turuAtla('Ebe zamanında kaydedemedi.'));
+    zamanla(EBE_SURESI * 1000 + 1500, () => ebeligiDevret('zamanında kaydedemedi'));
+    yayinla();
+  }
+
+  // Ebe süresinde kaydedemezse (ya da çıkarsa) 0 puan alır; ebelik sıradaki arkadaşa yeni bir ünlüyle geçer
+  function ebeligiDevret(neden) {
+    if (ev.asama !== 'ebe') return;
+    const n = ev.oyuncular.length;
+    const eski = ev.oyuncular[ev.ebe];
+    let yeni = (ev.ebe + 1) % n;
+    for (let k = 0; k < n && ev.oyuncular[yeni].koptu; k++) yeni = (yeni + 1) % n;
+    const kalan = ev.oyuncular.filter(o => !o.koptu).length;
+    if (ev.ebeDenemesi >= kalan || ev.oyuncular[yeni].koptu || kalan < 2) {
+      turuAtla(`${eski.ad} ${neden}.`);
+      return;
+    }
+    Object.assign(ev, {
+      ebe: yeni, unlu: yeniUnlu(), degisti: false, bitis: Date.now() + EBE_SURESI * 1000,
+      ebeDenemesi: ev.ebeDenemesi + 1,
+      uyari: `${eski.ad} ${neden}, 0 puan aldı. Ebelik ${ev.oyuncular[yeni].ad} oyuncusuna geçti!`,
+    });
+    zamanla(EBE_SURESI * 1000 + 1500, () => ebeligiDevret('zamanında kaydedemedi'));
     yayinla();
   }
 
@@ -210,7 +231,7 @@ const Ev = (() => {
       ev.taklitler[no] = k;
       yayinla();
       if (tahminEdenler().every(i => ev.taklitler[i])) setTimeout(tahminBaslat, 800);
-    } else if (m.ad === 'tahmin' && ev.asama === 'tahmin' && no !== ev.ebe && !ev.tahminler[no]?.dogru) {
+    } else if (m.ad === 'tahmin' && ev.asama === 'tahmin' && no !== ev.ebe && !ev.tahminler[no]) {  // tek hak
       tahminKontrol(no, String(m.metin ?? '').slice(0, 60));
     } else if (m.ad === 'sonraki' && no === AG.benimNo) {
       if (ev.asama === 'gosteri') {
@@ -222,14 +243,15 @@ const Ev = (() => {
     }
   }
 
+  // Her oyuncunun tek tahmin hakkı var: yanlışsa 0 puan, doğruysa hızına göre puan
   function tahminKontrol(no, metin) {
-    const t = ev.tahminler[no] ?? { dogru: false, deneme: 0 };
-    t.deneme++;
-    t.son = metin;
+    const t = { dogru: false, puan: 0, son: metin };
     ev.tahminler[no] = t;
+    const herkesTahminEtti = () => tahminEdenler().every(i => ev.tahminler[i]);
     if (!dogruMu(metin, ev.unlu)) {
       Ag.birine(no, { tip: 'sonuc', dogru: false, metin });
       yayinla();
+      if (herkesTahminEtti()) setTimeout(gosteriBaslat, 1200);
       return;
     }
     // Hız puanı: kalan süreye göre 100 ile 500 arası
@@ -240,9 +262,9 @@ const Ev = (() => {
     t.sure = Math.round((ev.ayar.tahmin * 1000 - Math.max(0, ev.bitis - Date.now())) / 100) / 10;
     ev.oyuncular[no].puan += t.puan;
     ev.oyuncular[no].turPuani += t.puan;
-    Ag.birine(no, { tip: 'sonuc', dogru: true, puan: t.puan, sira: t.sira });
+    Ag.birine(no, { tip: 'sonuc', dogru: true, puan: t.puan, sira: t.sira, metin });
     yayinla();
-    if (tahminEdenler().every(i => ev.tahminler[i]?.dogru)) setTimeout(gosteriBaslat, 1200);
+    if (herkesTahminEtti()) setTimeout(gosteriBaslat, 1200);
   }
 
   // Her oyuncuya kendi ekranı: ünlünün adı sadece ebeye (ve tur sonunda herkese) gösterilir
@@ -258,10 +280,12 @@ const Ev = (() => {
       kategori: ev.asama !== 'ebe' ? ev.unlu?.kategori : null,
       degistirebilir: !ev.degisti,
       atlandi: ev.atlandi,
+      uyari: ev.asama === 'ebe' ? ev.uyari : '',
       oyuncular: ev.oyuncular.map((o, i) => ({
         ad: o.ad, puan: o.puan, turPuani: o.turPuani, koptu: o.koptu,
         taklitVar: !!ev.taklitler[i],
         bildi: !!ev.tahminler[i]?.dogru,
+        tahminEtti: !!ev.tahminler[i],
         sira: ev.tahminler[i]?.sira ?? null,
         tahminSure: acik ? ev.tahminler[i]?.sure ?? null : null,
         sonTahmin: acik ? ev.tahminler[i]?.son ?? null : null,
@@ -279,9 +303,9 @@ const Ev = (() => {
     const o = ev.oyuncular[no];
     if (!o) return;
     o.koptu = true;
-    if (ev.asama === 'ebe' && no === ev.ebe) turuAtla(`${o.ad} (ebe) oyundan çıktı.`);
+    if (ev.asama === 'ebe' && no === ev.ebe) ebeligiDevret('oyundan çıktı');
     else if (ev.asama === 'taklit' && tahminEdenler().every(i => ev.taklitler[i])) tahminBaslat();
-    else if (ev.asama === 'tahmin' && tahminEdenler().every(i => ev.tahminler[i]?.dogru)) gosteriBaslat();
+    else if (ev.asama === 'tahmin' && tahminEdenler().every(i => ev.tahminler[i])) gosteriBaslat();
     yayinla();
   }
 
@@ -312,7 +336,6 @@ const Istemci = (() => {
     ebeSesi: null,       // ebenin kaydı (düz hâli; dinlerken ters çevrilir)
     sesler: {},          // gösteri için herkesin taklidi
     tahminSonucu: null,
-    yanlislar: [],
     gosteriCaliyor: false,
     calan: '',           // hangi düğme çalıyor (vurgulamak için)
   };
@@ -328,9 +351,10 @@ const Istemci = (() => {
   }
 
   function durumAl(d) {
-    const anahtar = `${d.tur}:${d.asama}`;
+    const anahtar = `${d.tur}:${d.asama}:${d.ebe}`;
     const yeni = anahtar !== ben.anahtar;
-    const yeniTur = !ben.d || ben.d.tur !== d.tur;
+    // Ebelik başkasına geçtiyse de yeni tur gibi: eski ebenin kaydı taklit sanılmasın
+    const yeniTur = !ben.d || ben.d.tur !== d.tur || ben.d.ebe !== d.ebe;
     ben.d = d;
     ben.bitis = Date.now() + d.kalanMs;
     $('menu').hidden = true;
@@ -342,12 +366,12 @@ const Istemci = (() => {
       ben.sesler = {};
       ben.kayit = null;
       ben.gonderildi = false;
+      ben.kayitSayisi = 0;
     }
     if (yeni) {
       ben.anahtar = anahtar;
       kayitIptal();
-      ben.tahminSonucu = d.benimTahmin?.dogru ? d.benimTahmin : null;
-      ben.yanlislar = [];
+      ben.tahminSonucu = d.benimTahmin ?? null;
       ben.gosteriCaliyor = false;
       Ses.durdur();
       if (d.asama !== 'skor') Ses.asama();
@@ -365,26 +389,25 @@ const Istemci = (() => {
     ciz(false);
   }
 
+  // Tek tahmin hakkı: sonuç doğru da olsa yanlış da olsa tahmin ekranı kapanır
   function tahminSonucu(m) {
-    if (m.dogru) {
-      ben.tahminSonucu = m;
-      Ses.dogru();
-    } else {
-      ben.yanlislar.push(m.metin);
-      Ses.yanlis();
-      $('tahminKutusu')?.classList.remove('salla');
-      void $('tahminKutusu')?.offsetWidth;
-      $('tahminKutusu')?.classList.add('salla');
-    }
-    ciz(false);
+    ben.tahminSonucu = { dogru: m.dogru, puan: m.puan ?? 0, sira: m.sira, son: m.metin };
+    if (m.dogru) Ses.dogru();
+    else Ses.yanlis();
+    ciz(true);
   }
 
   // ---------- 🎙️ Kayıt ----------
+  // Ebe sınırsız kaydedebilir; taklit edenin 2 kayıt hakkı var (yoksa sürekli değiştirip dururlar)
+  const TAKLIT_HAKKI = 2;
+  const hakKaldi = () => ebeMiyim() || (ben.kayitSayisi ?? 0) < TAKLIT_HAKKI;
+
   async function kayitDugmesi(sinir) {
     if (ben.kayitci) {
       ben.kayitci.durdur();
       return;
     }
+    if (!hakKaldi()) return;
     Ses.durdur();
     try {
       ben.kayitci = await Ses.kayitBaslat(sinir);
@@ -404,6 +427,7 @@ const Istemci = (() => {
       return;
     }
     ben.kayit = kayit;
+    if (!ebeMiyim()) ben.kayitSayisi = (ben.kayitSayisi ?? 0) + 1;
     ciz(false);
     // Kayıttan hemen sonra: ebe düz hâlini, taklit eden tersini (yani sonucu) duyar
     cal(ebeMiyim() ? 'benimDuz' : 'benimTers');
@@ -482,7 +506,7 @@ const Istemci = (() => {
       let durum = '';
       if (i === d.ebe && ['ebe', 'taklit', 'tahmin'].includes(d.asama)) durum = '🎙️';
       else if (d.asama === 'taklit') durum = o.taklitVar ? '✅' : '⏳';
-      else if (d.asama === 'tahmin') durum = o.bildi ? `✅${o.sira}` : '🤔';
+      else if (d.asama === 'tahmin') durum = o.bildi ? `✅${o.sira}` : o.tahminEtti ? '❌' : '🤔';
       return `<div class="oyuncu${o.koptu ? ' koptu' : ''}${i === benim() ? ' ben' : ''}" style="--renk:${renk(i)}">
         <span class="nokta"></span><b>${guvenli(o.ad)}</b><span class="puan">${o.puan}</span><span class="durum">${o.koptu ? '📡' : durum}</span></div>`;
     }).join('');
@@ -492,9 +516,12 @@ const Istemci = (() => {
 
   function kayitAlani(sinir, onayMetni) {
     const kaydediyor = !!ben.kayitci;
+    const hakli = hakKaldi();
+    const hak = ebeMiyim() ? '' : ` · Kayıt hakkı: <b>${TAKLIT_HAKKI - (ben.kayitSayisi ?? 0)}/${TAKLIT_HAKKI}</b>`;
+    const metin = kaydediyor ? '⏹️ Durdur' : !hakli ? '🔒 Hakkın bitti' : ben.kayit ? '🔁 Tekrar kaydet' : '🎙️ Kaydet';
     return `
-      <button id="kayitBtn" class="kayitBtn${kaydediyor ? ' kaydediyor' : ''}">${kaydediyor ? '⏹️ Durdur' : ben.kayit ? '🔁 Tekrar kaydet' : '🎙️ Kaydet'}</button>
-      <div class="kayitNot">${kaydediyor ? `Konuş! (en fazla ${sinir} saniye)` : `Basınca kayıt başlar, tekrar basınca durur (en fazla ${sinir} sn)`}</div>
+      <button id="kayitBtn" class="kayitBtn${kaydediyor ? ' kaydediyor' : ''}" ${!kaydediyor && !hakli ? 'disabled' : ''}>${metin}</button>
+      <div class="kayitNot">${kaydediyor ? `Konuş! (en fazla ${sinir} saniye)` : `Basınca kayıt başlar, tekrar basınca durur (en fazla ${sinir} sn)${hak}`}</div>
       <canvas id="dalga" class="dalga"></canvas>
       ${ben.kayit && !kaydediyor ? `<button id="onayBtn" class="onay">${onayMetni}</button>` : ''}`;
   }
@@ -508,16 +535,17 @@ const Istemci = (() => {
     const alan = $('alan');
     let html = '';
 
+    const uyari = d.uyari ? `<div class="uyari">⏰ ${guvenli(d.uyari)}</div>` : '';
     if (d.asama === 'ebe') {
       if (ebeMiyim()) {
-        html = `<div class="etiket">Sen ebesin! 🎙️ Bu ünlünün adını kaydet:</div>
+        html = `${uyari}<div class="etiket">Sen ebesin! 🎙️ Bu ünlünün adını kaydet:</div>
           <div class="unlu">${guvenli(d.unlu.ad)}</div><div class="kategori">${guvenli(d.unlu.kategori)}</div>
           ${d.degistirebilir && !ben.kayit ? '<button id="degistirBtn" class="ikinci kucuk">🔄 Başka ünlü (1 hak)</button>' : ''}
           ${kayitAlani(EBE_KAYIT_SINIRI, '✅ Onayla ve gönder')}
           ${ben.kayit && !ben.kayitci ? `<div class="dinleSatiri">${dugme('benimDuz', '▶️ Düz dinle')}${dugme('benimTers', '⏪ Tersten dinle')}</div>` : ''}
-          <div id="ipucu" class="ipucu">İsmi net ve anlaşılır söyle. Arkadaşların sadece <b>tersten</b> hâlini duyacak!</div>`;
+          <div id="ipucu" class="ipucu">İsmi net ve anlaşılır söyle. Arkadaşların sadece <b>tersten</b> hâlini duyacak! Süre biterse 0 puan alırsın ve ebelik sıradakine geçer.</div>`;
       } else {
-        html = `<div class="bekle">🎙️</div><div class="etiket">${ebeAdi} ebe. Gizli ünlüyü kaydediyor...</div>
+        html = `${uyari}<div class="bekle">🎙️</div><div class="etiket">${ebeAdi} ebe. Gizli ünlüyü kaydediyor...</div>
           <div class="ipucu">Birazdan onun sesini <b>tersten</b> duyacaksın. Kulaklarını aç! 👂</div>`;
       }
     } else if (d.asama === 'taklit') {
@@ -534,23 +562,25 @@ const Istemci = (() => {
           <div class="etiket">2️⃣ Duyduğunu <b>aynen</b> taklit edip kaydet:</div>
           ${kayitAlani(TAKLIT_KAYIT_SINIRI, '✅ Taklidimi onayla')}
           ${ben.kayit && !ben.kayitci ? `<div class="dinleSatiri">${dugme('benimTers', '⏪ Taklidim tersten')}${dugme('benimDuz', '▶️ Taklidim')}</div>` : ''}
-          <div id="ipucu" class="ipucu">Taklidin tersten çalınınca ünlünün adına benziyor mu? Süre bitince son kaydın otomatik gönderilir.</div>`;
+          <div id="ipucu" class="ipucu">Sesleri istediğin kadar dinleyebilirsin ama <b>2 kayıt hakkın</b> var. Süre bitince son kaydın otomatik gönderilir.</div>`;
       }
     } else if (d.asama === 'tahmin') {
       if (ebeMiyim()) {
         const bilenler = d.oyuncular.filter(o => o.bildi).length;
         html = `<div class="bekle">🤔</div><div class="etiket">Arkadaşların ünlüyü tahmin ediyor...</div>
           <div class="unlu kucuk">${guvenli(d.unlu.ad)}</div><div class="ipucu">Şu ana kadar ${bilenler} kişi bildi. Bilen herkes için +${EBE_PUANI} puan alırsın!</div>`;
-      } else if (ben.tahminSonucu) {
+      } else if (ben.tahminSonucu?.dogru) {
         html = `<div class="bekle">🎉</div><div class="etiket">Bildin! <b>+${ben.tahminSonucu.puan}</b> puan (${ben.tahminSonucu.sira}. sırada)</div>
           <div class="ipucu">Diğerleri bekleniyor...</div>`;
+      } else if (ben.tahminSonucu) {
+        html = `<div class="bekle">😬</div><div class="etiket">Olmadı! "<b>${guvenli(ben.tahminSonucu.son ?? '')}</b>" değilmiş. 0 puan.</div>
+          <div class="ipucu">Doğru cevap tur sonunda açıklanacak. Diğerleri bekleniyor...</div>`;
       } else {
         html = `<div class="etiket">Bu ünlü kim? <span class="kategori">İpucu: ${guvenli(d.kategori ?? '')}</span></div>
           <div class="dinleSatiri">${ben.kayit ? dugme('benimTers', '⏪ Taklidim tersten') : ''}${ben.ebeSesi ? dugme('ebeTers', '⏪ Ebenin sesi (ters)') : ''}</div>
           <form id="tahminFormu" class="tahminFormu"><input id="tahminKutusu" class="giris" maxlength="40" placeholder="Ünlünün adını yaz..." autocomplete="off" autocapitalize="words">
           <button>Tahmin et</button></form>
-          ${ben.yanlislar.length ? `<div class="yanlislar">❌ ${ben.yanlislar.slice(-3).map(guvenli).join(' · ')}</div>` : ''}
-          <div class="ipucu">Ne kadar hızlı bilirsen o kadar çok puan! Yazım hatası biraz olsa da sorun değil.</div>`;
+          <div class="ipucu">⚠️ <b>Tek hakkın var!</b> Ne kadar hızlı bilirsen o kadar çok puan. Küçük yazım hataları sorun değil.</div>`;
       }
     } else if (d.asama === 'gosteri') {
       const satirlar = d.oyuncular.map((o, i) => {
@@ -581,11 +611,7 @@ const Istemci = (() => {
 
     // Kayıt sürerken ya da tahmin yazarken ekranı baştan çizip kutuyu bozmayalım
     const tahminYaziliyor = !yeni && document.activeElement?.id === 'tahminKutusu' && d.asama === 'tahmin' && !ben.tahminSonucu;
-    if (tahminYaziliyor) {
-      const yanlis = alan.querySelector('.yanlislar');
-      if (yanlis && ben.yanlislar.length) yanlis.innerHTML = `❌ ${ben.yanlislar.slice(-3).map(guvenli).join(' · ')}`;
-      return;
-    }
+    if (tahminYaziliyor) return;
     const eskiTahmin = $('tahminKutusu')?.value ?? '';
     alan.innerHTML = html;
     if ($('tahminKutusu')) $('tahminKutusu').value = yeni ? '' : eskiTahmin;
