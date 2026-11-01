@@ -50,7 +50,7 @@ function mesafe(a, b) {  // iki kelime arasında kaç harf farkı var (Levenshte
 
 // Soyadı listede başka kimsede yoksa tek başına soyadı da kabul edilir
 const SOYAD_SAYISI = {};
-UNLULER.forEach(([ad]) => {
+[...UNLULER, ...UNLULER_YABANCI].forEach(([ad]) => {
   const parca = ad.split(' ');
   if (parca.length > 1) {
     const s = sadelestir(parca[parca.length - 1]);
@@ -65,7 +65,8 @@ function dogruMu(metin, unlu) {
   const parca = unlu.ad.split(' ');
   if (parca.length > 1) {
     const soyad = sadelestir(parca[parca.length - 1]);
-    if (SOYAD_SAYISI[soyad] === 1 && soyad.length >= 4) adaylar.push(soyad);
+    // Ebenin kendi yazdığı ünlüde soyadı her zaman kabul; listedekilerde soyadı tek kişiye aitse
+    if (soyad.length >= 4 && (unlu.ozel || SOYAD_SAYISI[soyad] === 1)) adaylar.push(soyad);
   }
   return adaylar.some(a => {
     const tolerans = a.length <= 4 ? 0 : a.length <= 9 ? 1 : 2;
@@ -113,11 +114,13 @@ const Ev = (() => {
     turBaslat();
   }
 
+  // Ayara göre sadece Türk ya da Türk + yabancı ünlülerden, bu oyunda henüz çıkmamış biri
   function yeniUnlu() {
-    let adaylar = UNLULER.filter(u => !ev.kullanilan.has(u[0]));
+    const havuz = ev.ayar.liste === 'karisik' ? [...UNLULER, ...UNLULER_YABANCI] : UNLULER;
+    let adaylar = havuz.filter(u => !ev.kullanilan.has(u[0]));
     if (!adaylar.length) {
       ev.kullanilan.clear();
-      adaylar = UNLULER;
+      adaylar = havuz;
     }
     const [ad, kategori, kabul] = adaylar[Math.floor(Math.random() * adaylar.length)];
     ev.kullanilan.add(ad);
@@ -221,6 +224,12 @@ const Ev = (() => {
     if (m.ad === 'degistir' && ev.asama === 'ebe' && no === ev.ebe && !ev.degisti) {
       ev.degisti = true;
       ev.unlu = yeniUnlu();
+      yayinla();
+    } else if (m.ad === 'ozelUnlu' && ev.asama === 'ebe' && no === ev.ebe) {
+      // Ebe aklındaki ünlüyü kendisi yazdı
+      const ad = String(m.metin ?? '').replace(/\s+/g, ' ').trim().slice(0, 30);
+      if (sadelestir(ad).length < 2) return;
+      ev.unlu = { ad, kategori: 'Ebenin seçimi', ozel: true };
       yayinla();
     } else if (m.ad === 'ebeOnay' && ev.asama === 'ebe' && no === ev.ebe) {
       ev.ebeKayit = kayitCoz(m);
@@ -355,6 +364,11 @@ const Istemci = (() => {
     const yeni = anahtar !== ben.anahtar;
     // Ebelik başkasına geçtiyse de yeni tur gibi: eski ebenin kaydı taklit sanılmasın
     const yeniTur = !ben.d || ben.d.tur !== d.tur || ben.d.ebe !== d.ebe;
+    // Ebe ünlüyü değiştirdiyse (ya da kendisi yazdıysa) eski isimle yapılan kayıt silinir
+    if (!yeniTur && d.asama === 'ebe' && d.unlu && ben.d?.unlu?.ad !== d.unlu.ad) {
+      ben.kayit = null;
+      ben.ozelAcik = false;
+    }
     ben.d = d;
     ben.bitis = Date.now() + d.kalanMs;
     $('menu').hidden = true;
@@ -404,22 +418,35 @@ const Istemci = (() => {
 
   async function kayitDugmesi(sinir) {
     if (ben.kayitci) {
-      ben.kayitci.durdur();
+      if (!ben.hazirlaniyor) ben.kayitci.durdur();  // mikrofon açılırken basılırsa yok say
       return;
     }
-    if (!hakKaldi()) return;
+    if (!hakKaldi() || ben.mikAciliyor) return;
     Ses.durdur();
+    // Mikrofon açılana kadar "açılıyor" yazar; gerçekten dinlemeye başlayınca bip + "KONUŞ!"
+    ben.mikAciliyor = true;
+    ben.hazirlaniyor = true;
     try {
-      ben.kayitci = await Ses.kayitBaslat(sinir);
+      ben.kayitci = await Ses.kayitBaslat(sinir, {
+        hazir: () => {
+          ben.hazirlaniyor = false;
+          ciz(false);
+        },
+      });
     } catch (e) {
+      ben.mikAciliyor = false;
+      ben.hazirlaniyor = false;
       $('ipucu').innerHTML = '🎙️ Mikrofona izin verilmedi. Telefonunun ayarlarından bu siteye mikrofon izni ver.';
       return;
     }
-    Ses.kayit();
-    ben.kayitBaslangic = Date.now();
+    ben.mikAciliyor = false;
     ciz(false);
-    const kayit = await ben.kayitci.sonuc;
+    const kayitci = ben.kayitci;
+    const anahtar = ben.anahtar;
+    const kayit = await kayitci.sonuc;
+    if (ben.kayitci !== kayitci || ben.anahtar !== anahtar) return;  // bu arada aşama değişti, kayıt iptal
     ben.kayitci = null;
+    ben.hazirlaniyor = false;
     Ses.dur();
     if (kayit.veri.length < Ses.ORAN * 0.2) {
       $('ipucu').textContent = 'Ses çok kısa ya da çok sessiz geldi. Bir daha dene.';
@@ -434,6 +461,7 @@ const Istemci = (() => {
   }
 
   function kayitIptal() {
+    ben.hazirlaniyor = false;
     if (!ben.kayitci) return;
     const k = ben.kayitci;
     ben.kayitci = null;
@@ -518,10 +546,11 @@ const Istemci = (() => {
     const kaydediyor = !!ben.kayitci;
     const hakli = hakKaldi();
     const hak = ebeMiyim() ? '' : ` · Kayıt hakkı: <b>${TAKLIT_HAKKI - (ben.kayitSayisi ?? 0)}/${TAKLIT_HAKKI}</b>`;
-    const metin = kaydediyor ? '⏹️ Durdur' : !hakli ? '🔒 Hakkın bitti' : ben.kayit ? '🔁 Tekrar kaydet' : '🎙️ Kaydet';
+    const hazirlaniyor = kaydediyor && ben.hazirlaniyor;
+    const metin = hazirlaniyor ? '⏳ Mikrofon açılıyor...' : kaydediyor ? '🔴 KONUŞ!<br><small>bitince bas</small>' : !hakli ? '🔒 Hakkın bitti' : ben.kayit ? '🔁 Tekrar kaydet' : '🎙️ Kaydet';
     return `
-      <button id="kayitBtn" class="kayitBtn${kaydediyor ? ' kaydediyor' : ''}" ${!kaydediyor && !hakli ? 'disabled' : ''}>${metin}</button>
-      <div class="kayitNot">${kaydediyor ? `Konuş! (en fazla ${sinir} saniye)` : `Basınca kayıt başlar, tekrar basınca durur (en fazla ${sinir} sn)${hak}`}</div>
+      <button id="kayitBtn" class="kayitBtn${hazirlaniyor ? ' hazirlaniyor' : kaydediyor ? ' kaydediyor' : ''}" ${!kaydediyor && !hakli ? 'disabled' : ''}>${metin}</button>
+      <div class="kayitNot">${hazirlaniyor ? 'Bip sesini ve "KONUŞ!" yazısını bekle...' : kaydediyor ? `Şimdi konuş! (en fazla ${sinir} saniye)` : `Basınca mikrofon açılır, bip sesinden sonra konuş (en fazla ${sinir} sn)${hak}`}</div>
       <canvas id="dalga" class="dalga"></canvas>
       ${ben.kayit && !kaydediyor ? `<button id="onayBtn" class="onay">${onayMetni}</button>` : ''}`;
   }
@@ -540,7 +569,11 @@ const Istemci = (() => {
       if (ebeMiyim()) {
         html = `${uyari}<div class="etiket">Sen ebesin! 🎙️ Bu ünlünün adını kaydet:</div>
           <div class="unlu">${guvenli(d.unlu.ad)}</div><div class="kategori">${guvenli(d.unlu.kategori)}</div>
-          ${d.degistirebilir && !ben.kayit ? '<button id="degistirBtn" class="ikinci kucuk">🔄 Başka ünlü (1 hak)</button>' : ''}
+          <div class="dinleSatiri">
+            ${d.degistirebilir ? '<button id="degistirBtn" class="ikinci kucuk">🔄 Başka ünlü (1 hak)</button>' : ''}
+            <button id="ozelBtn" class="ikinci kucuk">✏️ Kendim yazayım</button>
+          </div>
+          ${ben.ozelAcik ? `<form id="ozelFormu" class="tahminFormu"><input id="ozelKutusu" class="giris" maxlength="30" placeholder="Aklındaki ünlünün adı..." autocomplete="off" autocapitalize="words"><button>Tamam</button></form>` : ''}
           ${kayitAlani(EBE_KAYIT_SINIRI, '✅ Onayla ve gönder')}
           ${ben.kayit && !ben.kayitci ? `<div class="dinleSatiri">${dugme('benimDuz', '▶️ Düz dinle')}${dugme('benimTers', '⏪ Tersten dinle')}</div>` : ''}
           <div id="ipucu" class="ipucu">İsmi net ve anlaşılır söyle. Arkadaşların sadece <b>tersten</b> hâlini duyacak! Süre biterse 0 puan alırsın ve ebelik sıradakine geçer.</div>`;
@@ -624,6 +657,19 @@ const Istemci = (() => {
     $('degistirBtn')?.addEventListener('click', () => {
       Ses.secim();
       Ag.eylem('degistir');
+    });
+    $('ozelBtn')?.addEventListener('click', () => {
+      Ses.secim();
+      ben.ozelAcik = !ben.ozelAcik;
+      ciz(false);
+      $('ozelKutusu')?.focus();
+    });
+    $('ozelFormu')?.addEventListener('submit', e => {
+      e.preventDefault();
+      const metin = $('ozelKutusu').value.trim();
+      if (sadelestir(metin).length < 2) return;
+      Ses.secim();
+      Ag.eylem('ozelUnlu', { metin });
     });
     $('onayBtn')?.addEventListener('click', () => {
       if (!ben.kayit) return;
@@ -720,3 +766,7 @@ $('sesBtn').textContent = Ses.acik ? '🔊' : '🔇';
 $('menuBtn').onclick = () => ($('cikisEkrani').hidden = false);
 $('cikisHayir').onclick = () => ($('cikisEkrani').hidden = true);
 $('cikisEvet').onclick = menuyeDon;
+
+// iPhone'da iki parmakla ya da çift dokunuşla sayfa yakınlaşmasın
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });

@@ -14,7 +14,7 @@ const AG = { mod: 'yerel', benimNo: 0 };
 
 const Ag = (() => {
   // Online kısmı her değiştiğinde 1 artır: eski sürümle gelen oyuncu odaya alınmaz
-  const SURUM = 2;
+  const SURUM = 3;
   const ODA_ONEKI = 'ters-ses-oda-';
   const KOD_HARFLERI = 'ABCDEFGHJKLMNPRSTUVYZ23456789';  // karışabilecek O/0, I/1 yok
   const KOD_UZUNLUK = 5;
@@ -59,6 +59,12 @@ const Ag = (() => {
     } else if (AG.mod === 'ev') {
       Ev.eylem(AG.benimNo, { ad, ...veri });
     }
+  }
+
+  // Oyun sırasında üstte oda kodu görünür: biri çıkarsa aynı kodla geri girebilsin
+  function odaKodunuGoster(kod) {
+    $('odaBilgisi').innerHTML = `🔑 Oda: <b>${kod}</b>`;
+    $('odaBilgisi').hidden = false;
   }
 
   function durumYaz(html) {
@@ -137,6 +143,7 @@ const Ag = (() => {
       AG.benimNo = 0;
       ag.kod = kod;
       ag.isimler = [ad];
+      odaKodunuGoster(kod);
       kilitle();
       nabziBaslat();
       $('ayarlar').hidden = false;
@@ -247,6 +254,7 @@ const Ag = (() => {
     ag.basladi = true;
     ag.isimler = [ag.isimler[0], ...ag.misafirler.map(m => m.ad)];
     Ev.baslat(ag.isimler, {
+      liste: $('unluListesi').value,
       taklit: Number($('taklitSuresi').value),
       tahmin: Number($('tahminSuresi').value),
       tekrar: Number($('turSayisi').value),
@@ -307,6 +315,7 @@ const Ag = (() => {
         return;
       }
       AG.benimNo = m.no;
+      odaKodunuGoster(ag.kod);
       kilitle();
     } else if (m?.tip === 'lobi' && Array.isArray(m.isimler)) {
       durumYaz(`✅ Odaya bağlandın! Oyunu oda sahibi başlatacak, bekle...${lobiListesi(m.isimler, AG.benimNo)}`);

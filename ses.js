@@ -26,25 +26,21 @@ const Ses = (() => {
   }
 
   // ---------- 🎙️ Kayıt: başlat, istediğin an durdur (en fazla "enFazla" saniye) ----------
-  async function kayitBaslat(enFazla = 4) {
+  // Telefonda mikrofonun açılması yarım saniye kadar sürer; o arada söylenen ilk hece kayboluyordu.
+  // Bu yüzden kayıt, mikrofondan gerçekten ses gelmeye başladığı an başlar: o an "hazir" çağrılır,
+  // ekranda "KONUŞ!" yazar ve kısa bir bip çalar.
+  async function kayitBaslat(enFazla = 4, { hazir } = {}) {
     const c = motor();
     const akis = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     const kaynak = c.createMediaStreamSource(akis);
-    const isleyici = c.createScriptProcessor(4096, 1, 1);
+    const isleyici = c.createScriptProcessor(2048, 1, 1);
     const parcalar = [];
-    let bitti = false, cozucu;
-    isleyici.onaudioprocess = e => {
-      if (!bitti) parcalar.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    };
-    const sessiz = c.createGain();  // kayıt sırasında hoparlörden geri çalmasın
-    sessiz.gain.value = 0;
-    kaynak.connect(isleyici);
-    isleyici.connect(sessiz);
-    sessiz.connect(c.destination);
-
+    let basladi = false, bitti = false, cozucu, zamanlayici;
+    let atlanacak = 3;  // bip sesinin kendisi kayda girmesin diye ilk ~0,13 saniye atlanır
     const sonuc = new Promise(coz => (cozucu = coz));
+
     function durdur() {
       if (bitti) return sonuc;
       bitti = true;
@@ -56,7 +52,35 @@ const Ses = (() => {
       cozucu(hamdanKayda(parcalar, c.sampleRate));
       return sonuc;
     }
-    const zamanlayici = setTimeout(durdur, enFazla * 1000);
+
+    function basla() {
+      if (basladi || bitti) return;
+      basladi = true;
+      efektler.kayit();
+      zamanlayici = setTimeout(durdur, enFazla * 1000);
+      if (hazir) hazir();
+    }
+
+    isleyici.onaudioprocess = e => {
+      if (bitti) return;
+      const veri = e.inputBuffer.getChannelData(0);
+      if (!basladi) {
+        // Mikrofon açıldı mı? (açılırken ilk parçalar tamamen sessiz gelir)
+        if (veri.some(x => x !== 0)) basla();
+        return;
+      }
+      if (atlanacak > 0) {
+        atlanacak--;
+        return;
+      }
+      parcalar.push(new Float32Array(veri));
+    };
+    const sessiz = c.createGain();  // kayıt sırasında hoparlörden geri çalmasın
+    sessiz.gain.value = 0;
+    kaynak.connect(isleyici);
+    isleyici.connect(sessiz);
+    sessiz.connect(c.destination);
+    setTimeout(basla, 1500);  // bazı telefonlarda ilk parçalar hiç sıfır olmayabilir: en geç 1,5 sn sonra başla
     return { durdur, sonuc };
   }
 
@@ -80,8 +104,9 @@ const Ses = (() => {
     }
     let tepe = 0.0001;
     for (const x of ornek) tepe = Math.max(tepe, Math.abs(x));
-    // Sessizlik kesme: tepenin %8'inden kısık baş ve son kısım atılır (küçük bir pay bırakılarak)
-    const esik = tepe * 0.08, pay = ORAN * 0.08;
+    // Sessizlik kesme: tepenin %3'ünden kısık baş ve son kısım atılır. Pay geniş tutulur ki
+    // "s", "h", "f" gibi yumuşak başlayan sesler kesilmesin.
+    const esik = tepe * 0.03, pay = ORAN * 0.2;
     let bas = 0, son = n - 1;
     while (bas < n && Math.abs(ornek[bas]) < esik) bas++;
     while (son > bas && Math.abs(ornek[son]) < esik) son--;
@@ -108,7 +133,7 @@ const Ses = (() => {
     const kaynak = c.createBufferSource();
     kaynak.buffer = tampon;
     kaynak.connect(ana);
-    kaynak.start();
+    kaynak.start(c.currentTime + 0.05);  // ses motoru yeni uyandıysa ilk an yutulmasın
     calan = kaynak;
     return new Promise(coz => {
       kaynak.onended = () => {

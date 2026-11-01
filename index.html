@@ -35,6 +35,12 @@
       <div id="onlineDurum"></div>
 
       <div id="ayarlar" hidden>
+        <label class="ayarSatiri">🌍 Ünlüler
+          <select id="unluListesi">
+            <option value="turk" selected>Sadece Türk</option>
+            <option value="karisik">Türk + Yabancı</option>
+          </select>
+        </label>
         <label class="ayarSatiri">🦜 Taklit süresi
           <select id="taklitSuresi">
             <option value="20">20 sn</option>
@@ -63,7 +69,7 @@
         <summary>Nasıl oynanır?</summary>
         <ol>
           <li>Biri <b>Oda aç</b>'a basar, çıkan kodu arkadaşlarına söyler. Diğerleri adını ve kodu yazıp <b>Katıl</b>'a basar.</li>
-          <li>Her turda biri <b>ebe</b> olur. Ebeye bir Türk ünlü çıkar (şarkıcı, oyuncu, futbolcu...). Ebe ismi kaydeder, düz ve tersten dinler, onaylar.</li>
+          <li>Her turda biri <b>ebe</b> olur. Ebeye bir ünlü çıkar (ayarlardan sadece Türk ya da Türk + yabancı seçilir). İsterse 1 kez değiştirir ya da <b>aklındaki ünlüyü kendisi yazar</b>. Sonra ismi kaydeder, düz ve tersten dinler, onaylar.</li>
           <li>Ebe istediği kadar tekrar kaydedebilir ama 90 saniyesi var. Süre biterse 0 puan alır ve ebelik sıradakine geçer.</li>
           <li>Diğerleri sadece <b>tersten</b> hâlini dinler (istediği kadar) ve duyduğunu aynen taklit edip kaydeder. <b>2 kayıt hakkı</b> var.</li>
           <li>Taklidini tersten dinleyince ünlünün adına benzer bir şey duyarsın... ya da hiç benzemez 😄</li>
@@ -77,7 +83,10 @@
 
   <section id="oyun" hidden>
     <header class="ust">
-      <div id="turBilgisi"></div>
+      <div class="solUst">
+        <div id="turBilgisi"></div>
+        <div id="odaBilgisi" hidden></div>
+      </div>
       <div id="sure" class="sure" hidden><span id="sureYazi"></span></div>
       <div class="ustDugmeler">
         <button id="menuBtn" title="Ana menüye dön" hidden>🏠</button>
