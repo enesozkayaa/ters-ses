@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--
+  Ters Ses - uygulama simgesini çizer.
+  Adres sonuna ?boyut=512&pay=0.08 yazılır (pay: kenar boşluğu; "maskable" simgede daha büyük).
+  PNG'ye çevirmek için Edge görünmez modda ekran görüntüsü alır:
+    msedge --headless --hide-scrollbars --window-size=512,512 --screenshot=ikonlar/ikon-512.png "file:///.../araclar/ikon-ciz.html?boyut=512&pay=0.08"
+-->
+<html>
+<head>
+<meta charset="UTF-8">
+<style>html, body { margin: 0; background: #1a1033; overflow: hidden; } canvas { display: block; }</style>
+</head>
+<body>
+<script>
+  const ayar = new URLSearchParams(location.search);
+  const boyut = +(ayar.get('boyut') || 512);
+  const pay = +(ayar.get('pay') || 0.08);
+  const c = document.createElement('canvas');
+  c.width = c.height = boyut;
+  document.body.appendChild(c);
+  const g = c.getContext('2d');
+  g.scale(boyut / 512, boyut / 512);
+
+  const arka = g.createLinearGradient(0, 0, 512, 512);
+  arka.addColorStop(0, '#ff4d6d');
+  arka.addColorStop(0.5, '#7a3cff');
+  arka.addColorStop(1, '#1a1033');
+  g.fillStyle = arka;
+  g.fillRect(0, 0, 512, 512);
+
+  g.save();
+  const k = 1 - pay;
+  g.translate(256, 256);
+  g.scale(k, k);
+  g.translate(-256, -256);
+
+  // Ses dalgası: soldan sağa turkuaz, ortadan sonra ayna gibi ters (mor)
+  const yukseklikler = [40, 90, 150, 210, 120, 260, 180, 300, 300, 180, 260, 120, 210, 150, 90, 40];
+  yukseklikler.forEach((h, i) => {
+    g.fillStyle = i < 8 ? '#2ee6d6' : '#ffd23f';
+    const x = 56 + i * 26;
+    g.beginPath();
+    g.roundRect(x, 256 - h / 2, 16, h, 8);
+    g.fill();
+  });
+
+  // Ortada geri saran ok
+  g.strokeStyle = '#fff';
+  g.lineWidth = 14;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.arc(256, 256, 70, Math.PI * 0.15, Math.PI * 1.75);
+  g.stroke();
+  g.fillStyle = '#fff';
+  g.beginPath();
+  g.moveTo(256 + 70 * Math.cos(Math.PI * 1.75) + 30, 256 + 70 * Math.sin(Math.PI * 1.75) - 8);
+  g.lineTo(256 + 70 * Math.cos(Math.PI * 1.75) - 18, 256 + 70 * Math.sin(Math.PI * 1.75) - 26);
+  g.lineTo(256 + 70 * Math.cos(Math.PI * 1.75) - 8, 256 + 70 * Math.sin(Math.PI * 1.75) + 24);
+  g.closePath();
+  g.fill();
+  g.restore();
+</script>
+</body>
+</html>

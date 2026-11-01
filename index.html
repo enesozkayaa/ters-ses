@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#1a1033">
+  <title>Ters Ses</title>
+  <meta name="description" content="Ünlünün adı tersten çalınır, sen de duyduğunu taklit edersin. Arkadaşlarınla online parti oyunu.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="ikonlar/ikon-192.png">
+  <link rel="apple-touch-icon" href="ikonlar/ikon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Ters Ses">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="arkaPlan"></div>
+
+  <section id="menu" class="ekran">
+    <div class="kart">
+      <h1>TERS <span class="ters">SES</span></h1>
+      <div class="baslikDalga">⏪ 🎙️ 🔁</div>
+      <p class="alt-baslik">Ünlünün adı tersten çalınır. Duyduğunu taklit et, tersine çevir, bil!</p>
+
+      <h3>🌐 Arkadaşlarınla online</h3>
+      <input id="onlineAd" class="giris" maxlength="12" placeholder="Adın" autocomplete="off">
+      <div class="onlineSatir">
+        <button id="odaAcBtn">Oda aç</button>
+        <input id="odaKodu" class="giris" maxlength="5" placeholder="Oda kodu" autocomplete="off" autocapitalize="characters">
+        <button id="katilBtn" class="ikinci">Katıl</button>
+      </div>
+      <div id="onlineDurum"></div>
+
+      <div id="ayarlar" hidden>
+        <label class="ayarSatiri">🦜 Taklit süresi
+          <select id="taklitSuresi">
+            <option value="20">20 sn</option>
+            <option value="30" selected>30 sn</option>
+            <option value="45">45 sn</option>
+            <option value="60">60 sn</option>
+          </select>
+        </label>
+        <label class="ayarSatiri">🤔 Tahmin süresi
+          <select id="tahminSuresi">
+            <option value="30">30 sn</option>
+            <option value="45" selected>45 sn</option>
+            <option value="60">60 sn</option>
+          </select>
+        </label>
+        <label class="ayarSatiri">🔁 Tur sayısı
+          <select id="turSayisi">
+            <option value="1" selected>Herkes 1 kez ebe</option>
+            <option value="2">Herkes 2 kez ebe</option>
+          </select>
+        </label>
+      </div>
+      <button id="baslaBtn" hidden disabled>Oyunu başlat</button>
+
+      <details>
+        <summary>Nasıl oynanır?</summary>
+        <ol>
+          <li>Biri <b>Oda aç</b>'a basar, çıkan kodu arkadaşlarına söyler. Diğerleri adını ve kodu yazıp <b>Katıl</b>'a basar.</li>
+          <li>Her turda biri <b>ebe</b> olur. Ebeye bir Türk ünlü çıkar (şarkıcı, oyuncu, futbolcu...). Ebe ismi kaydeder, düz ve tersten dinler, onaylar.</li>
+          <li>Diğerleri sadece <b>tersten</b> hâlini dinler ve duyduğunu aynen taklit edip kaydeder.</li>
+          <li>Taklidini tersten dinleyince ünlünün adına benzer bir şey duyarsın... ya da hiç benzemez 😄</li>
+          <li>Sonra herkes ünlüyü tahmin edip yazar. <b>Ne kadar hızlı bilirsen o kadar çok puan</b> (100-500). Ebe, bilen her kişi için +150 alır.</li>
+          <li>Tur sonunda herkesin taklidi tersten çalınır. Kahkaha garanti!</li>
+        </ol>
+      </details>
+      <p id="surumNotu" class="surum"></p>
+    </div>
+  </section>
+
+  <section id="oyun" hidden>
+    <header class="ust">
+      <div id="turBilgisi"></div>
+      <div id="sure" class="sure" hidden><span id="sureYazi"></span></div>
+      <div class="ustDugmeler">
+        <button id="menuBtn" title="Ana menüye dön" hidden>🏠</button>
+        <button id="sesBtn" title="Sesi aç/kapat">🔊</button>
+      </div>
+    </header>
+    <div id="oyuncular" class="oyuncular"></div>
+    <main id="alan" class="alan"></main>
+  </section>
+
+  <section id="cikisEkrani" class="ekran ustte" hidden>
+    <div class="kart">
+      <h2>🏠 Ana menüye dön</h2>
+      <p>Emin misin? Online oyundan çıkacaksın. Aynı oda kodu ve aynı adla geri girebilirsin.</p>
+      <div class="ikiDugme">
+        <button id="cikisHayir" class="ikinci">Hayır, devam</button>
+        <button id="cikisEvet">Evet, çık</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="baglantiEkrani" class="ekran ustte" hidden>
+    <div class="kart">
+      <h2>📡 Bağlantı</h2>
+      <p id="baglantiMetni"></p>
+      <button id="yenidenBaglanBtn">🔄 Yeniden bağlan</button>
+    </div>
+  </section>
+
+  <script src="unluler.js"></script>
+  <script src="ses.js"></script>
+  <script src="oyun.js"></script>
+  <!-- Online oyun: PeerJS telefonları doğrudan bağlar -->
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="ag.js"></script>
+  <script>
+    // Servis çalışanı: telefona kurulum ve otomatik güncelleme için (sadece internetten açılınca)
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      const eskiKontrol = navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (eskiKontrol && AG.mod === 'yerel' && !$('menu').hidden) location.reload();
+      });
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
+</body>
+</html>

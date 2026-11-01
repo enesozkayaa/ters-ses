@@ -1,0 +1,19 @@
+{
+  "name": "Ters Ses",
+  "short_name": "Ters Ses",
+  "description": "Ünlünün adı tersten çalınır, sen de duyduğunu taklit edersin. Arkadaşlarınla online parti oyunu.",
+  "lang": "tr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1a1033",
+  "theme_color": "#1a1033",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "ikonlar/ikon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "ikonlar/ikon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "ikonlar/ikon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
