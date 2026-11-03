@@ -6,7 +6,7 @@
 // Oyunu güncelleyip yüklerken ONBELLEK numarasını 1 artır.
 // =============================================================
 
-const ONBELLEK = 'ters-ses-v3';
+const ONBELLEK = 'ters-ses-v4';
 const DOSYALAR = [
   './', 'index.html', 'style.css', 'unluler.js', 'ses.js', 'oyun.js', 'ag.js',
   'manifest.webmanifest', 'ikonlar/ikon-192.png', 'ikonlar/ikon-512.png',

@@ -278,6 +278,15 @@ const Ag = (() => {
     const peer = new Peer();
     ag.peer = peer;
     sunucuyaYenidenBaglan(peer);
+    // 15 saniyede bağlanılamazsa sonsuza kadar "bağlanılıyor" yazmasın, ne yapılacağını söylesin
+    setTimeout(() => {
+      if (ag.peer !== peer || ag.baglanti) return;
+      durumYaz('❌ 15 saniyedir bağlanılamadı. Şunları dene:<br>'
+        + '• Oda sahibi oyunu <b>açık</b> tutsun, ekranı kilitlenmesin (kodu göndermek için WhatsApp’a geçtiyse oyuna geri dönsün).<br>'
+        + '• İkiniz de aynı Wi-Fi’ye bağlanın ya da ikiniz de mobil veriye geçin.<br>'
+        + '• Sonra tekrar <b>Katıl</b>’a bas.');
+      ['katilBtn', 'odaKodu', 'onlineAd'].forEach(id => $(id) && ($(id).disabled = false));
+    }, 15000);
     peer.on('open', () => {
       if (ag.peer !== peer || ag.baglanti) return;
       const baglanti = peer.connect(ODA_ONEKI + kod, { reliable: true });
@@ -300,7 +309,7 @@ const Ag = (() => {
     peer.on('error', e => {
       if (ag.peer !== peer || ag.baglanti) return;
       durumYaz(e.type === 'peer-unavailable'
-        ? '❌ Bu kodla bir oda bulunamadı. Arkadaşının oyunu açık mı? Kodu kontrol et.'
+        ? '❌ Bu kodla açık bir oda bulunamadı. Kodu kontrol et. Oda sahibinin oyunu açık mı? (Kodu göndermek için oyundan çıktıysa telefon oyunu uyutur: oyuna geri dönsün, sonra tekrar Katıl’a bas.)'
         : `❌ Bağlanılamadı (${e.type}). İnternet bağlantını kontrol et.`);
     });
   }
