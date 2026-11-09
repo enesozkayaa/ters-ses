@@ -197,3 +197,7 @@ details ol { padding-left: 20px; line-height: 1.5; }
   .unlu { font-size: 28px; }
   .kayitBtn { width: 130px; height: 130px; font-size: 19px; }
 }
+
+/* iPhone: yazı kutusuna dokununca ekran büyümesin (16px altı yazılar büyütme yapar), çift dokunuşla büyütme olmasın */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+input, select, textarea { font-size: max(16px, 1em); }
